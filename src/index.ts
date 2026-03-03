@@ -44,6 +44,7 @@ interface BitbucketConfig {
   defaultProject?: string;
   maxLinesPerFile?: number;
   readOnly?: boolean;
+  disabledTools?: string[];
 }
 
 interface RepositoryParams {
@@ -143,7 +144,11 @@ class BitbucketServer {
       maxLinesPerFile: process.env.BITBUCKET_DIFF_MAX_LINES_PER_FILE 
         ? parseInt(process.env.BITBUCKET_DIFF_MAX_LINES_PER_FILE, 10) 
         : undefined,
-      readOnly: process.env.BITBUCKET_READ_ONLY === 'true'
+      readOnly: process.env.BITBUCKET_READ_ONLY === 'true',
+      disabledTools: (process.env.BITBUCKET_DISABLED_TOOLS ?? '')
+        .split(',')
+        .map(toolName => toolName.trim())
+        .filter(Boolean)
     };
 
     if (!this.config.baseUrl) {
@@ -185,6 +190,8 @@ class BitbucketServer {
 
   private setupToolHandlers() {
     const readOnlyTools = ['list_projects', 'list_repositories', 'get_pull_request', 'get_diff', 'get_reviews', 'get_activities', 'get_comments', 'search', 'get_file_content', 'browse_repository', 'list_branches', 'list_commits'];
+    const disabledTools = new Set((this.config.disabledTools ?? []).map(toolName => toolName.toLowerCase()));
+    const isToolDisabled = (toolName: string): boolean => disabledTools.has(toolName.toLowerCase());
     
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
@@ -486,13 +493,23 @@ class BitbucketServer {
             required: ['repository', 'prId']
           }
         }
-      ].filter(tool => !this.config.readOnly || readOnlyTools.includes(tool.name))
+      ].filter(tool => {
+        const allowedByReadOnly = !this.config.readOnly || readOnlyTools.includes(tool.name);
+        return allowedByReadOnly && !isToolDisabled(tool.name);
+      })
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         logger.info(`Called tool: ${request.params.name}`, { arguments: request.params.arguments });
         const args = request.params.arguments ?? {};
+
+        if (isToolDisabled(request.params.name)) {
+          throw new McpError(
+            ErrorCode.MethodNotFound,
+            `Tool ${request.params.name} is disabled via BITBUCKET_DISABLED_TOOLS`
+          );
+        }
 
         // Check if tool is allowed in read-only mode
         if (this.config.readOnly && !readOnlyTools.includes(request.params.name)) {

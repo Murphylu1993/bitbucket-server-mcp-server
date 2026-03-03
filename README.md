@@ -529,6 +529,7 @@ The server requires configuration in the VSCode MCP settings file. Here's a samp
 - `BITBUCKET_DIFF_MAX_LINES_PER_FILE` (optional): Default maximum lines to show per file in diffs. Set to prevent large files from overwhelming output. Can be overridden by the `maxLinesPerFile` parameter in `get_diff` calls.
 - `BITBUCKET_LOG_PATH` (optional): Custom path for the log file (default: `~/.bitbucket-server-mcp/bitbucket.log`)
 - `BITBUCKET_READ_ONLY` (optional): Set to `true` to enable read-only mode
+- `BITBUCKET_DISABLED_TOOLS` (optional): Comma-separated list of tool names to disable manually (example: `add_comment,merge_pull_request,delete_branch`)
 
 **Note**: With the new optional project support, you can now:
 
@@ -569,6 +570,8 @@ The server supports a read-only mode for deployments where you want to prevent a
 **Behavior:**
 - When `BITBUCKET_READ_ONLY` is not set or set to any value other than `true`, all tools function normally (backward compatible)
 - When `BITBUCKET_READ_ONLY=true`, write operations are filtered out and will return an error if called
+- When `BITBUCKET_DISABLED_TOOLS` is set, listed tools are hidden from `list_tools` and return an error if called directly
+- `BITBUCKET_DISABLED_TOOLS` can be combined with `BITBUCKET_READ_ONLY` for stricter access control
 - This is perfect for production deployments, CI/CD integration, or any scenario where you need safe, read-only Bitbucket access
 
 ## Logging
